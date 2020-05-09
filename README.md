@@ -1,4 +1,4 @@
-# resizable-row
+# resizable-children
 
 ## Project setup
 ```

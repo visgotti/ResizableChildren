@@ -1,15 +1,25 @@
 {
-  "name": "resizable-row",
-  "version": "0.1.0",
-  "private": true,
+  "name": "resizable-children",
+  "version": "1.0.4",
+  "private": false,
+  "main": "dist/resizable-children.udm.js",
+  "module": "dist/resizable-children.esm.js",
+  "unpkg": "dist/resizable-children.min.js",
+  "browser": {
+    "./sfc": "src/resizable-children.vue"
+  },
   "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
+    "build": "npm run build:umd & npm run build:es & npm run build:unpkg",
+    "build:umd": "rollup --config rollup.config.js --format umd --file dist/resizable-children.umd.js",
+    "build:es": "rollup --config rollup.config.js --format es --file dist/resizable-children.js",
+    "build:unpkg": "rollup --config rollup.config.js --format iife --file dist/resizable-children.min.js",
+    "serve": "npm run build & vue-cli-service serve example/main.js",
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
     "core-js": "^3.6.4",
-    "vue": "^2.6.11"
+    "vue": "^2.6.11",
+    "vue-resize": "^0.5.0"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "~4.3.0",
@@ -18,7 +28,12 @@
     "babel-eslint": "^10.1.0",
     "eslint": "^6.7.2",
     "eslint-plugin-vue": "^6.2.2",
-    "vue-template-compiler": "^2.6.11"
+    "vue-template-compiler": "^2.6.10",
+    "rollup": "^1.17.0",
+    "@rollup/plugin-buble": "^0.21.3",
+    "@rollup/plugin-commonjs": "^11.1.0",
+    "rollup-plugin-vue": "^5.0.1",
+    "vue": "^2.6.10"
   },
   "eslintConfig": {
     "root": true,
