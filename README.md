@@ -1,7 +1,7 @@
 # resizable-children
 ```vue
     <ResizableChildren direction="row"
-        v-on:lengths-changed="lengthUpdates => (console.log(...lengthUpdates)/* Array< { index: number, oldLength: number, newLength: number }> */)"
+        @lengths="lengthUpdates => (console.log(...lengthUpdates)/* Array< { index: number, oldLength: number, newLength: number }> */)"
     >
         <div :start-percent="40"> 
             EXPLICIT START-PERCENT SLOT, has start-percent attribute with value of 40, since direction is row, the width of this slot will be 40% of the parent. (height for column)

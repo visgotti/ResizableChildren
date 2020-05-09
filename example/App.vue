@@ -14,6 +14,7 @@
           v-if="this.selectedDirection === 'row'"
           :direction="'row'"
          :divider-length="'95%'"
+          @lengths="handleLengthsChanged"
       >
         <div
             :start-percent="50"
@@ -32,6 +33,7 @@
         v-else-if="this.selectedDirection==='column'"
         :direction="'column'"
         :divider-length="'95%'"
+        @lengths="handleLengthsChanged"
     >
             <div>
                 <div> slot 1a </div>
@@ -56,6 +58,9 @@ export default {
       }
     },
     methods: {
+        handleLengthsChanged(v) {
+            console.log('lengths changed:', v)
+        },
         handleSwitchTo(dir) {
             if(dir === this.selectedDirection) return;
             // im not sure why... but if i just set the direction to something else it doesnt hit the mounted/destroy hooks on the component.

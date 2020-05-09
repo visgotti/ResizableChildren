@@ -143,10 +143,10 @@
             innerStyleObjects() {
                 const obj = {};
                 Object.keys(this.lengthsPerSection).forEach((k, i) => {
-                    let value = this.lengthsPerSection[k][this.dividerLengthKey];
+                    let value = this.lengthsPerSection[k][this.lengthKey];
                     // only if were the last section do we not care about the offset since it wont have a divider..
                     const offsetForDivider = i !== this.totalSections ? this.dividerLength : 0;
-                    obj[k] = this.makeLengthStyleObject(this.dividerLengthKey, value - offsetForDivider);
+                    obj[k] = this.makeLengthStyleObject(this.lengthKey, value - offsetForDivider);
                 });
                 return obj;
             },
@@ -258,6 +258,14 @@
                     }
                 }
                 this.lengthsPerSection = newLengths;
+                const payload = Object.keys(this.lengthsPerSection).map(k => {
+                    return {
+                        index: k,
+                        newLength: this.lengthsPerSection[k][this.lengthKey],
+                        oldLength: 0,
+                    }
+                });
+                this.$emit('lengths', payload);
             },
             getBeforePositionOfSection(sectionIndex) {
                 return parseInt(this.$refs[`section${sectionIndex}`][0].getBoundingClientRect()[this.beforeKey])
@@ -282,13 +290,14 @@
                             style: this.makeLengthStyleObject(this.lengthKey, `${newValue}px`)
                         }
                     }
-                    this.$emit('lengths-changed', [
+                    const payload = [
                         {
                             index: this.totalSections-1,
                             oldLength: oldValue,
                             newLength: newValue,
                         }
-                    ]);
+                    ];
+                    this.$emit('lengths', payload);
                 }
             },
             updateSectionLengths(tryDelta) {
@@ -337,8 +346,7 @@
                     const lastAfterLength = this.lengthsPerSection[afterSectionIndex][this.lengthKey];
 
                     this.lengthsPerSection = copiedWidths;
-
-                    this.$emit('lengths-changed', [
+                    const payload = [
                         {
                             index: beforeSectionIndex,
                             oldLength: lastBeforeLength,
@@ -348,7 +356,8 @@
                             index: afterSectionIndex,
                             oldLength: lastAfterLength,
                             newLength: tryNextAfterLength,
-                        }]);
+                    }];
+                    this.$emit('lengths', payload);
                 }
             },
             handleDragStart(event, index) {
