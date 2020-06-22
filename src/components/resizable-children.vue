@@ -9,7 +9,7 @@
         <div
             class="slot-wrapper --resizable-child-slot-wrapper"
             v-for="(slot, i) in $slots.default"
-            :key="`slot-wrapper-${i+updates}`"
+            :key="`slot-wrapper-${i}`"
             :style="lengthsPerSection[i] && lengthsPerSection[i].style"
             :ref="`section${i}`"
         >
@@ -115,7 +115,6 @@
         },
         data() {
             return {
-                updates: 0,
                 utilizedParentLength: '0px',
                 lastDragPosition: 0,
                 isDraggingIndex: -1,
@@ -132,7 +131,6 @@
         },
         computed: {
             isRow() { return this.direction === 'row'; },
-            isColumn() { return this.direction === 'column'; },
             bodyClass() { return `--resizable-${this.direction}-is-dragging` },
             dividerClass() { return `section-divider-handle--${this.direction}` },
             dividerLengthKey() { return this.isRow ? 'clientWidth' : 'clientHeight' },
@@ -211,7 +209,9 @@
                                 throw new Error(`Total start percent can not go above 100.`)
                             }
                         } else {
-                            throw new Error(`Invalid start percent attribute ${startPercent} given on slot #${i}; must be an integer value 0 or above.`)
+                            if('start-percent' in percent.data.attrs) {
+                                throw new Error(`Invalid start percent attribute ${startPercent} given on slot #${i}; must be an integer value 0 or above.`)
+                            }
                         }
                     }
                 }
