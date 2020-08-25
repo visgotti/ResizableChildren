@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <div
+    <
       class="demo-section"
     >
         <ul>
@@ -8,41 +8,33 @@
             <li @click="() => { this.handleSwitchTo('column') }" :class="{'selected-dir': this.selectedDirection === 'column'}"> column </li>
         </ul>
       <h3>
-          {{ this.selectedDirection}} with resizable children
+          {{ selectedDirection}} with resizable children
       </h3>
       <ResizableChildren
-          v-if="this.selectedDirection === 'row'"
-          :direction="'row'"
-         :divider-length="'95%'"
+          v-if="selectedDirection"
+          :direction="selectedDirection"
+          :divider-length="'95%'"
           @lengths="handleLengthsChanged"
       >
-        <div
-            :start-percent="50"
-        >
+        <div :start-percent="50">
           <div> slot 1a </div>
           <div> slot 1b </div>
         </div>
-        <div
-            :start-percent="40"
-        >
+        <div :start-percent="40">
             slot 2
         </div>
         <div> slot 4 </div>
       </ResizableChildren>
-    <ResizableChildren
-        v-else-if="this.selectedDirection==='column'"
-        :direction="'column'"
-        :divider-length="'95%'"
-        @lengths="handleLengthsChanged"
-    >
-            <div>
-                <div> slot 1a </div>
-                <div> slot 1b </div>
-            </div>
-            <div> slot 2 </div>
-            <div> slot 3 </div>
-            <div> slot 4 </div>
-    </ResizableChildren>
+
+        <Droppy
+            title="Animations"
+            @toggle="(e) => { log('toggled:' + e) }"
+        >
+            <Droppy v-for="dropitem in dropsitems"
+            />
+            </Droppy>
+        </Droppy>
+
     </div>
   </div>
 </template>
@@ -62,12 +54,16 @@ export default {
             console.log('lengths changed:', v)
         },
         handleSwitchTo(dir) {
+            this.selectedDirection = dir;
+
+            /*
             if(dir === this.selectedDirection) return;
             // im not sure why... but if i just set the direction to something else it doesnt hit the mounted/destroy hooks on the component.
             this.selectedDirection = null;
             this.$nextTick(() => {
                 this.selectedDirection = dir;
             })
+             */
         }
     },
   components: {

@@ -42,6 +42,23 @@
     import { ResizeObserver } from 'vue-resize'
     import 'vue-resize/dist/vue-resize.css'
 
+    const defaultState = () => {
+        return {
+            utilizedParentLength: '0px',
+            lastDragPosition: 0,
+            isDraggingIndex: -1,
+            totalSections: 0,
+            totalDividerLength: 0,
+            dividerHandleOffset: 0,
+            lengthsPerSection: {},
+            indexesBeforeCollapsed: {},
+            indexesAfterCollapsed: {},
+            dividerOffsetStyle: {['bottom']: '0px' },
+            startPercents: {},
+            utilizedStartPercent: 0,
+        }
+    }
+
     export default {
         name: 'ResizableChildren',
         components: {
@@ -49,24 +66,20 @@
             ResizeObserver
         },
         created() {
-            this.updateSectionLengthsFromParentResize = this.updateSectionLengthsFromParentResize.bind(this);
+            // do initial pre mount calculations and register needed event listens
             this.totalSections = this.$slots.default.length;
             this.totalDividerLength = (this.totalSections-1) * parseInt(this.dividerThickness);
             this.dividerHandleOffset = `-${Math.floor((parseInt(this.dividerHandleThickness) - parseInt(this.dividerThickness)) / 2)}px`;
-            this.handleDragEnd = this.handleDragEnd.bind(this);
-            document.addEventListener('mouseup', this.handleDragEnd);
-            this.handleDragSection = this.handleDragSection.bind(this);
+            this.registerListeners();
         },
         mounted() {
-            this.parseStartPercents();
-            this.setDefaultLengths();
+            // now component is mounted can do calculations that rely on the parent div bounds
+            this.startPercents = this.parseAndValidateStartPercents();
+            this.setLengthsByPercents(this.startPercents);
             this.dividerOffsetStyle = this.getDividerOffset();
         },
         beforeDestroy() {
-            if(this.isDraggingIndex > 0) {
-                this.isDraggingIndex = -1;
-            }
-            document.removeEventListener('mouseup', this.handleDragEnd);
+            this.removeListeners()
         },
         props: {
             direction: {
@@ -111,23 +124,15 @@
                 required: false,
                 validator: pixelValidator,
                 default: '100%'
+            },
+            keepPercentsOnSwitch: {
+                type: Boolean,
+                required: false,
+                default: true
             }
         },
         data() {
-            return {
-                utilizedParentLength: '0px',
-                lastDragPosition: 0,
-                isDraggingIndex: -1,
-                lengthsPerSection: {},
-                totalSections: 0,
-                totalDividerLength: 0,
-                dividerHandleOffset: 0,
-                indexesBeforeCollapsed: {},
-                indexesAfterCollapsed: {},
-                dividerOffsetStyle: {['bottom']: '0px' },
-                startPercents: {},
-                utilizedStartPercent: 0,
-            }
+            return defaultState()
         },
         computed: {
             isRow() { return this.direction === 'row'; },
@@ -185,6 +190,34 @@
             }
         },
         watch: {
+            direction(newV, oldV) {
+                if(newV !== oldV && newV) {
+                    const oldUtilized = this.utilizedParentLength;
+                    let newState;
+                    const sectionCountChanged = this.totalSections !== Object.keys(this.lengthsPerSection).length;
+                    const persist = !sectionCountChanged && this.keepPercentsOnSwitch;
+                    if(persist) {
+                        newState = {
+                            ...this.data,
+                            lengthsPerSection: {},
+                            dividerOffsetStyle: this.getDividerOffset()
+                        }
+                        const curPercentages = this.getPercentages();
+                        this.setLengthsByPercents();
+                    } else {
+                        newState = {
+                            ...defaultState(),
+                            totalSections: this.$slots.default.length,
+                            totalDividerLength: (this.$slots.default.length-1) * parseInt(this.dividerThickness),
+                            dividerHandleOffset: `-${Math.floor((parseInt(this.dividerHandleThickness) - parseInt(this.dividerThickness)) / 2)}px`
+                        }
+                    }
+                    newState.dividerOffsetStyle = this.getDividerOffset();
+                    Object.keys(newState).forEach(k => {
+                        this[k] = newState[k];
+                    });
+                }
+            },
             isDraggingIndex(newV, oldV) {
                 if(oldV < 0 && newV >= 0) {
                     document.body.classList.add(this.bodyClass);
@@ -196,14 +229,28 @@
             }
         },
         methods: {
-            parseStartPercents() {
+            removeListeners() {
+                if(this.isDraggingIndex >= 0) {
+                    document.body.classList.remove(this.bodyClass);
+                    document.removeEventListener('mousemove', this.handleDragSection);
+                }
+                document.removeEventListener('mouseup', this.handleDragEnd);
+            },
+            registerListeners() {
+                this.updateSectionLengthsFromParentResize = this.updateSectionLengthsFromParentResize.bind(this);
+                this.handleDragEnd = this.handleDragEnd.bind(this);
+                this.handleDragSection = this.handleDragSection.bind(this);
+                document.addEventListener('mouseup', this.handleDragEnd);
+            },
+            parseAndValidateStartPercents() {
+                const startPercents = {};
                 this.utilizedStartPercent = 0;
                 for(let i = 0; i < this.$slots.default.length; i++) {
                     const percent = this.$slots.default[i];
                     if(percent.data && percent.data.attrs) {
                         const startPercent = percent.data.attrs['start-percent'];
                         if(startPercent !== null && !isNaN(startPercent) && startPercent > 0) {
-                            this.startPercents[i] =startPercent;
+                            startPercents[i] =startPercent;
                             this.utilizedStartPercent+=startPercent;
                             if(this.utilizedStartPercent > 100) {
                                 throw new Error(`Total start percent can not go above 100.`)
@@ -215,6 +262,7 @@
                         }
                     }
                 }
+                return { ...startPercents }
             },
             getDividerOffset() {
                 let dividerLengthOffset = 0;
@@ -233,18 +281,18 @@
                 }
                 return { [dividerOffsetKey]: `${dividerLengthOffset}${measurement}` }
             },
-            setDefaultLengths() {
+            setLengthsByPercents(percents) {
                 let newLengths = {};
                 let evenLength = 0;
                 if(this.$refs.outer) {
                     this.utilizedParentLength = this.$refs.outer[this.dividerLengthKey];
                     const utilizedStartPixels = this.utilizedParentLength * (this.utilizedStartPercent/100);
                     const totalLength = this.utilizedParentLength - utilizedStartPixels;
-                    evenLength = Math.floor(totalLength/(this.totalSections-Object.keys(this.startPercents).length));
+                    evenLength = Math.floor(totalLength/(this.totalSections-Object.keys(percents).length));
                 }
                 let utilized = 0;
                 for(let i = 0; i < this.totalSections; i++) {
-                    let lengthToUse = i in this.startPercents ? Math.floor(this.utilizedParentLength * (this.startPercents[i] / 100)) : evenLength;
+                    let lengthToUse = i in percents ? Math.floor(this.utilizedParentLength * (percents[i] / 100)) : evenLength;
                     utilized+=lengthToUse;
                     if(i === this.totalSections-1) {
                         if(this.utilizedParentLength-utilized > 0) {
@@ -300,7 +348,7 @@
                     this.$emit('lengths', payload);
                 }
             },
-            updateSectionLengths(tryDelta) {
+            updateSectionLengths(tryDelta, force=false) {
                 const dividerThickness =  parseInt(this.dividerThickness);
                 const beforeSectionIndex = this.isDraggingIndex;
                 const afterSectionIndex = this.isDraggingIndex + 1;
@@ -337,7 +385,7 @@
                 }
 
                 const tryNextAfterLength = curAfterLength - tryDelta;
-                if(Math.abs(tryDelta) > 0) {
+                if(Math.abs(tryDelta) > 0 || force) {
                     copiedWidths[beforeSectionIndex][this.lengthKey] = tryNextBeforeLength;
                     copiedWidths[beforeSectionIndex].style = this.makeLengthStyleObject(this.lengthKey, `${tryNextBeforeLength}px`)
                     copiedWidths[afterSectionIndex][this.lengthKey] = tryNextAfterLength;
