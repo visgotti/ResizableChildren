@@ -60,9 +60,11 @@
         mounted() {
             this.parseStartPercents();
             this.setDefaultLengths();
+            this.initializedLengths = true;
             this.dividerOffsetStyle = this.getDividerOffset();
         },
         beforeDestroy() {
+          this.initializedLengths = false;
             if(this.isDraggingIndex > 0) {
                 this.isDraggingIndex = -1;
             }
@@ -115,6 +117,7 @@
         },
         data() {
             return {
+                initializedLengths: false,
                 utilizedParentLength: '0px',
                 lastDragPosition: 0,
                 isDraggingIndex: -1,
@@ -274,6 +277,7 @@
                 return parseInt(this.$refs[`section${sectionIndex}`][0].getBoundingClientRect()[this.afterKey])
             },
             updateSectionLengthsFromParentResize(resized) {
+                if(!this.initializedLengths) return false;
                 let value = resized[this.lengthKey];
                 if(parseInt(this.utilizedParentLength) !== parseInt(value)) {
                     this.utilizedParentLength = value;

@@ -1,6 +1,6 @@
 {
   "name": "resizable-children",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": false,
   "main": "dist/resizable-children.udm.js",
   "module": "dist/resizable-children.esm.js",
