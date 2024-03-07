@@ -1,39 +1,36 @@
 {
   "name": "resizable-children",
-  "version": "1.0.6",
+  "version": "2.0.0",
   "private": false,
-  "main": "dist/resizable-children.udm.js",
-  "module": "dist/resizable-children.esm.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "unpkg": "dist/resizable-children.min.js",
   "browser": {
     "./sfc": "src/resizable-children.vue"
   },
   "scripts": {
-    "build": "npm run build:umd & npm run build:es & npm run build:unpkg",
-    "build:umd": "rollup --config rollup.config.js --format umd --file dist/resizable-children.umd.js",
-    "build:es": "rollup --config rollup.config.js --format es --file dist/resizable-children.js",
-    "build:unpkg": "rollup --config rollup.config.js --format iife --file dist/resizable-children.min.js",
-    "serve": "npm run build & vue-cli-service serve example/main.js",
-    "lint": "vue-cli-service lint"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "core-js": "^3.6.4",
-    "vue": "^2.6.11",
-    "vue-resize": "^0.5.0"
+    "@vueuse/core": "^10.9.0"
   },
   "devDependencies": {
+    "@rollup/plugin-buble": "^0.21.3",
+    "@rollup/plugin-commonjs": "^11.1.0",
+    "@vitejs/plugin-vue": "^5.0.4",
     "@vue/cli-plugin-babel": "~4.3.0",
     "@vue/cli-plugin-eslint": "~4.3.0",
     "@vue/cli-service": "~4.3.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^6.7.2",
     "eslint-plugin-vue": "^6.2.2",
-    "vue-template-compiler": "^2.6.10",
     "rollup": "^1.17.0",
-    "@rollup/plugin-buble": "^0.21.3",
-    "@rollup/plugin-commonjs": "^11.1.0",
     "rollup-plugin-vue": "^5.0.1",
-    "vue": "^2.6.10"
+    "vite": "^5.1.5",
+    "vite-plugin-css-injected-by-js": "^3.4.0",
+    "vue": "^3.4.21"
   },
   "eslintConfig": {
     "root": true,

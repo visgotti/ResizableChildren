@@ -1,22 +1,21 @@
 <template>
-    <div class="resizable-row-outer"
+    <div :class="outerWrapperClass"
          :ref="'outer'"
          :style="{
              ...outerStyleObject
          }"
     >
-        <resize-observer @notify="updateSectionLengthsFromParentResize" />
         <div
             class="slot-wrapper --resizable-child-slot-wrapper"
-            v-for="(slot, i) in $slots.default"
+            v-for="(slot, i) in slots"
             :key="`slot-wrapper-${i}`"
             :style="lengthsPerSection[i] && lengthsPerSection[i].style"
             :ref="`section${i}`"
         >
-            <render-slot :value='slot'
+            <render-slot :value="slot"
                 :style="innerStyleObjects[i]"
             />
-            <div  v-if="i < totalSections-1"
+            <div v-if="i < slots.length-1"
                   class="section-divider"
                   :style="{
                     ...dividerStyleObject,
@@ -36,35 +35,46 @@
 </template>
 
 <script>
-    import renderSlot from "./renderSlot";
+    import renderSlot from "./renderSlot.js";
     import { capitalize, isPixelValue, pixelValidator } from "../utils";
-    import 'vue-resize/dist/vue-resize.css'
-    import { ResizeObserver } from 'vue-resize'
-    import 'vue-resize/dist/vue-resize.css'
-
+    import { useResizeObserver } from '@vueuse/core';
+    import { ref } from 'vue';
     export default {
         name: 'ResizableChildren',
         components: {
             renderSlot,
-            ResizeObserver
         },
         created() {
             this.updateSectionLengthsFromParentResize = this.updateSectionLengthsFromParentResize.bind(this);
-            this.totalSections = this.$slots.default.length;
+            this.slots = this.$slots.default();
+            this.totalSections = this.slots.length;
             this.totalDividerLength = (this.totalSections-1) * parseInt(this.dividerThickness);
             this.dividerHandleOffset = `-${Math.floor((parseInt(this.dividerHandleThickness) - parseInt(this.dividerThickness)) / 2)}px`;
+        },
+        mounted() {
             this.handleDragEnd = this.handleDragEnd.bind(this);
             document.addEventListener('mouseup', this.handleDragEnd);
             this.handleDragSection = this.handleDragSection.bind(this);
-        },
-        mounted() {
+            
+            this.resizeObserver = useResizeObserver(this.$refs.outer, (entries) => {
+                const [entry] = entries
+                const { width, height } = entry.contentRect;
+                this.updateSectionLengthsFromParentResize(entry.contentRect);
+            });
             this.parseStartPercents();
             this.setDefaultLengths();
             this.initializedLengths = true;
             this.dividerOffsetStyle = this.getDividerOffset();
+        
+            this.updateSectionLengthsFromParentResize({
+                width: this.$refs.outer.clientWidth,
+                height: this.$refs.outer.clientHeight,
+            });
         },
-        beforeDestroy() {
-          this.initializedLengths = false;
+        beforeUnmount() {
+            this.resizeObserver?.stop();
+            this.resizeObserver = null;
+            this.initializedLengths = false;
             if(this.isDraggingIndex > 0) {
                 this.isDraggingIndex = -1;
             }
@@ -113,10 +123,17 @@
                 required: false,
                 validator: pixelValidator,
                 default: '100%'
+            },
+            preventCursorStyle: {
+                type: Boolean,
+                required: false,
+                default: false
             }
         },
         data() {
             return {
+                resizeObserver: null,
+                slots: [],
                 initializedLengths: false,
                 utilizedParentLength: '0px',
                 lastDragPosition: 0,
@@ -135,18 +152,36 @@
         computed: {
             isRow() { return this.direction === 'row'; },
             bodyClass() { return `--resizable-${this.direction}-is-dragging` },
-            dividerClass() { return `section-divider-handle--${this.direction}` },
             dividerLengthKey() { return this.isRow ? 'clientWidth' : 'clientHeight' },
             beforeKey() { return this.isRow ? 'left' : 'top' },
             afterKey() { return this.isRow ? 'right' : 'bottom' },
             eventPosKey() { return this.isRow ? 'clientX' : 'clientY'; },
             lengthKey() { return this.isRow ? 'width' : 'height'; },
+            draggingItems() {
+                return {
+                    item1: this.getSlotDataAtIndex(this.isDraggingIndex),
+                    item2: this.getSlotDataAtIndex(this.isDraggingIndex+1),
+                }
+            },
+            dividerClass() {
+                const className = `section-divider-handle--${this.direction}`;
+                if(!this.preventCursorStyle) {
+                   return `${className} is-dragging`;
+                }
+                return className;
+             },
+            outerWrapperClass() {
+                let className = 'resizable-row-outer';
+                if(this.isDraggingIndex > -1 && !this.preventCursorStyle) {
+                    className = `${className} ${this.direction}-is-dragging`;
+                }
+                return className;
+            },
             innerStyleObjects() {
                 const obj = {};
                 Object.keys(this.lengthsPerSection).forEach((k, i) => {
-                    let value = this.lengthsPerSection[k][this.lengthKey];
-                    // only if were the last section do we not care about the offset since it wont have a divider..
-                    const offsetForDivider = i !== this.totalSections ? this.dividerLength : 0;
+                    const value = this.lengthsPerSection[k][this.lengthKey];
+                    const offsetForDivider = i !== this.totalSections ? parseInt(this.dividerThickness) : 0;
                     obj[k] = this.makeLengthStyleObject(this.lengthKey, value - offsetForDivider);
                 });
                 return obj;
@@ -189,16 +224,31 @@
         },
         watch: {
             isDraggingIndex(newV, oldV) {
+                let classListMethod = 'add';
                 if(oldV < 0 && newV >= 0) {
-                    document.body.classList.add(this.bodyClass);
                     document.addEventListener('mousemove', this.handleDragSection);
                 } else if (oldV >= 0 && newV < 0) {
-                    document.body.classList.remove(this.bodyClass);
+                    classListMethod = 'remove';
                     document.removeEventListener('mousemove', this.handleDragSection);
+                }
+                if(!this.preventCursorStyle) {
+                    document.body.classList[classListMethod](this.bodyClass);
                 }
             }
         },
         methods: {
+            getSlotDataAtIndex(slotIndex) {
+                let itemRef = this.$refs[`section${slotIndex}`];
+                if(Array.isArray(itemRef)) {
+                    itemRef = itemRef[0];
+                }
+                return {
+                    slotIndex,
+                    slot: this.slots[slotIndex],
+                    slotWrapperElement: itemRef,
+                    slotElement: itemRef?.children?.[0],
+                }
+            },
             parseStartPercents() {
                 this.utilizedStartPercent = 0;
                 for(let i = 0; i < this.$slots.default.length; i++) {
@@ -367,6 +417,7 @@
             handleDragStart(event, index) {
                 this.isDraggingIndex=index;
                 this.lastDragPosition = event[this.eventPosKey];
+                this.$emit('drag-start', { index, ...this.draggingItems })
             },
             handleDragSection(e) {
                 e.preventDefault();
@@ -397,6 +448,7 @@
                 this.updateSectionLengths(delta);
             },
             handleDragEnd() {
+                this.$emit('drag-end', { index: this.isDraggingIndex, ...this.draggingItems });
                 this.isDraggingIndex = -1;
             },
             makeLengthStyleObject(key, value) {
@@ -411,24 +463,32 @@
 </script>
 
 <style scoped>
-    .slot-wrapper {
-        position: relative;
-        overflow: hidden;
+    .resizable-row-outer.row-is-dragging {
+        cursor: ew-resize;
     }
-    .section-divider-handle {
+    .resizable-row-outer.column-is-dragging {
+        cursor: ns-resize;
+    }
+   .section-divider-handle {
         background-color: transparent;
         position: relative;
     }
     .section-divider-handle--column {
         width: 100%;
-        cursor: ns-resize;
     }
     .section-divider-handle--row {
         height: 100%;
+    }
+    .section-divider-handle--column.is-dragging{
+        cursor: ns-resize;
+    }
+    .section-divider-handle--row.is-dragging {
         cursor: ew-resize;
     }
-</style>
-<style>
+    .slot-wrapper {
+        position: relative;
+        overflow: hidden;
+    }
     .--resizable-child-slot-wrapper > div {
         width: 100%;
         min-width: 100%;
@@ -438,6 +498,9 @@
         max-height: 100%;
         position: relative;
     }
+</style>
+
+<style>
     body.--resizable-row-is-dragging {
         cursor: ew-resize !important;
     }

@@ -13,8 +13,10 @@
       <ResizableChildren
           v-if="this.selectedDirection === 'row'"
           :direction="'row'"
-         :divider-length="'95%'"
+          :divider-length="'95%'"
           @lengths="handleLengthsChanged"
+          @drag-start="handleDragStart"
+          @drag-end="handleDragEnd"
       >
         <div
             :start-percent="50"
@@ -34,6 +36,8 @@
         :direction="'column'"
         :divider-length="'95%'"
         @lengths="handleLengthsChanged"
+        @drag-start="handleDragStart"
+        @drag-end="handleDragEnd"
     >
             <div>
                 <div> slot 1a </div>
@@ -48,11 +52,12 @@
 </template>
 
 <script>
-import ResizableChildren from '../src/components/resizable-children.vue'
+import ResizableChildren from '../../dist';
 
 export default {
   name: 'App',
     data() {
+      console.log({ ResizableChildren })
       return {
           selectedDirection: 'row'
       }
@@ -61,6 +66,13 @@ export default {
         handleLengthsChanged(v) {
             console.log('lengths changed:', v)
         },
+        handleDragEnd(e) {
+          console.log('end', e);
+        },
+        handleDragStart(e) {
+          console.log('start', e);
+        },
+
         handleSwitchTo(dir) {
             if(dir === this.selectedDirection) return;
             // im not sure why... but if i just set the direction to something else it doesnt hit the mounted/destroy hooks on the component.
