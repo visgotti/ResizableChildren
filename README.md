@@ -3,7 +3,7 @@
     <ResizableChildren direction="row"
         @lengths="lengthUpdates => (console.log(...lengthUpdates)/* Array< { index: number, oldLength: number, newLength: number }> */)"
         @drag-start="event => (console.log(...event))"
-        @drag-end="//same event as drag-start"
+        @drag-end=""//same event as drag-start
     >
         <div :start-percent="40"> 
             EXPLICIT START-PERCENT SLOT, has start-percent attribute with value of 40, since direction is row, the width of this slot will be 40% of the parent. (height for column)
