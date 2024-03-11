@@ -2,11 +2,7 @@
 ```vue
     <ResizableChildren direction="row"
         @lengths="lengthUpdates => (console.log(...lengthUpdates)/* Array< { index: number, oldLength: number, newLength: number }> */)"
-        @drag-start="event => (console.log(...event))"/* { 
-            index: number, 
-            item1: { slot: Slot, wrapperRef: HTMLElement, slotElement: HTMLElement, slotIndex: number },
-            item2:  { slot: Slot, wrapperRef: HTMLElement, slotElement: HTMLElement, slotIndex: number },
-        } */
+        @drag-start="event => (console.log(...event))"
         @drag-end="//same event as drag-start"
     >
         <div :start-percent="40"> 
@@ -20,6 +16,12 @@
          </div>
     </ResizableChildren>
 ```
+
+DragEvent = {
+    index: number, 
+    item1: { slot: Slot, wrapperRef: HTMLElement, slotElement: HTMLElement, slotIndex: number },
+    item2:  { slot: Slot, wrapperRef: HTMLElement, slotElement: HTMLElement, slotIndex: number },
+}
 
 ## Project setup
 ```
