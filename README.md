@@ -17,11 +17,13 @@
     </ResizableChildren>
 ```
 
-DragEvent = {
+```ts
+type DragEvent = {
     index: number, 
     item1: { slot: Slot, wrapperRef: HTMLElement, slotElement: HTMLElement, slotIndex: number },
     item2:  { slot: Slot, wrapperRef: HTMLElement, slotElement: HTMLElement, slotIndex: number },
 }
+```
 
 ## Project setup
 ```
