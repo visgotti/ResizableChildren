@@ -11,6 +11,8 @@
           {{ this.selectedDirection}} with resizable children
       </h3>
       <ResizableChildren
+          :persist="true"
+          :persistId="'test-row'"
           v-if="this.selectedDirection === 'row'"
           :direction="'row'"
           :divider-length="'95%'"
@@ -32,6 +34,8 @@
         <div> slot 4 </div>
       </ResizableChildren>
     <ResizableChildren
+        :persist="true"
+        :persistId="'test-column'"
         v-else-if="this.selectedDirection==='column'"
         :direction="'column'"
         :divider-length="'95%'"

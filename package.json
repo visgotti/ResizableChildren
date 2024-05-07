@@ -1,6 +1,6 @@
 {
   "name": "resizable-children",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": false,
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -12,9 +12,6 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
-  },
-  "dependencies": {
-    "@vueuse/core": "^10.9.0"
   },
   "devDependencies": {
     "@rollup/plugin-buble": "^0.21.3",

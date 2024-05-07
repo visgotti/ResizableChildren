@@ -37,8 +37,6 @@
 <script>
     import renderSlot from "./renderSlot.js";
     import { capitalize, isPixelValue, pixelValidator } from "../utils";
-    import { useResizeObserver } from '@vueuse/core';
-    import { ref } from 'vue';
     export default {
         name: 'ResizableChildren',
         components: {
@@ -52,16 +50,39 @@
             this.dividerHandleOffset = `-${Math.floor((parseInt(this.dividerHandleThickness) - parseInt(this.dividerThickness)) / 2)}px`;
         },
         mounted() {
+            if(this.useResizeIntervalCheck) {
+                this.$nextTick(() => {
+                    this.lastParentWidth = this.$refs.outer?.clientWidth;
+                    this.lastParentHeight = this.$refs.outer?.clientHeight;
+                
+                    this.resizeInterval = setInterval(() => {  
+                        if(!this.$refs.outer) {
+                            return;
+                        }
+                        const { clientWidth, clientHeight } = this.$refs.outer;
+                        if(clientWidth != this.lastParentWidth || clientHeight != this.lastParentHeight) {
+                            this.lastParentWidth = clientWidth;
+                            this.lastParentHeight = clientHeight;
+                            this.updateSectionLengthsFromParentResize({ width: clientWidth, height: clientHeight });
+                        }
+                    }, this.intervalTimeout);
+                });
+            }
             this.handleDragEnd = this.handleDragEnd.bind(this);
             document.addEventListener('mouseup', this.handleDragEnd);
             this.handleDragSection = this.handleDragSection.bind(this);
+        
+            let restored = false;
+            if(this.persist) {
+                if(!this.persistId) {
+                    throw new Error(`Needs unique id in persistId prop to persist`)
+                }
+                restored = this.initPersistedStartPercents();
             
-            this.resizeObserver = useResizeObserver(this.$refs.outer, (entries) => {
-                const [entry] = entries
-                const { width, height } = entry.contentRect;
-                this.updateSectionLengthsFromParentResize(entry.contentRect);
-            });
-            this.parseStartPercents();
+            }
+            if(!restored) {
+                this.parseStartPercents();
+            }
             this.setDefaultLengths();
             this.initializedLengths = true;
             this.dividerOffsetStyle = this.getDividerOffset();
@@ -70,17 +91,28 @@
                 width: this.$refs.outer.clientWidth,
                 height: this.$refs.outer.clientHeight,
             });
+
         },
         beforeUnmount() {
-            this.resizeObserver?.stop();
-            this.resizeObserver = null;
             this.initializedLengths = false;
             if(this.isDraggingIndex > 0) {
                 this.isDraggingIndex = -1;
             }
+            if(this.resizeInterval){
+                clearInterval(this.resizeInterval);
+                this.resizeInterval = null;
+            }
             document.removeEventListener('mouseup', this.handleDragEnd);
         },
         props: {
+            persist: {
+                type: Boolean,
+                default: false,
+            },
+            persistId: {
+                type: String,
+                default: '',
+            },  
             direction: {
                 type: String,
                 required: true,
@@ -128,11 +160,21 @@
                 type: Boolean,
                 required: false,
                 default: false
+            },
+            useResizeIntervalCheck: {
+                type: Boolean,
+                default: true
+            },
+            intervalTimeout: {
+                type: Number,
+                default: 1000/30 // 30fps
             }
         },
         data() {
             return {
-                resizeObserver: null,
+                resizeInterval: null,
+                lastParentWidth: 0,
+                lastParentHeight: 0,
                 slots: [],
                 initializedLengths: false,
                 utilizedParentLength: '0px',
@@ -223,6 +265,10 @@
             }
         },
         watch: {
+            lengthsPerSection() {
+                if(!this.persist) return;
+                this.persistStartPercents();
+            },
             isDraggingIndex(newV, oldV) {
                 let classListMethod = 'add';
                 if(oldV < 0 && newV >= 0) {
@@ -237,6 +283,60 @@
             }
         },
         methods: {
+            persistStartPercents() {
+                if(!this.persist) {
+                    return;
+                }
+                const percents = [];
+                const outerLengthKey = this.isRow ? 'clientWidth' : 'clientHeight';
+                Object.keys(this.lengthsPerSection).forEach((k, i) => {
+                    const value = this.lengthsPerSection[k][this.lengthKey];
+                    const percent = Math.round(100 * (value/this.$refs.outer[outerLengthKey]));
+                    percents.push(percent);
+                });
+                let total = 0;
+                percents.forEach(p => {
+                    total += p;
+                });
+                let i = 0;
+                const sign = Math.sign(100-total);
+                while(total !== 100){
+                    percents[i] += sign;
+                    total+=sign;
+                    i++;
+                    if(i >= percents.length) {
+                        i = 0;
+                    }
+                }
+                if(typeof localStorage !== "undefined" && localStorage) {
+                    localStorage.setItem(this.persistId, JSON.stringify(percents));
+                }
+            },
+            initPersistedStartPercents() {
+                if(typeof localStorage !== "undefined" && localStorage) {
+                    const p = localStorage.getItem(this.persistId);
+                    if(!p) return false;
+            
+                    const startPercents = JSON.parse(p);
+                    if(startPercents.length !== this.slots.length) {
+                        // invalid start percents
+                        localStorage.removeItem(this.persistId);
+                        return false;
+                    }
+                    this.utilizedStartPercent = 0;
+                    startPercents.forEach((p, i) => {
+                        this.startPercents[i] = p;
+                        this.utilizedStartPercent+=p;
+                        if(this.utilizedStartPercent > 100) {
+                                // invalid start percents
+                            localStorage.removeItem(this.persistId);
+                            return false;
+                        }
+                    });
+                    return true;
+                }
+                return false;
+            },
             getSlotDataAtIndex(slotIndex) {
                 let itemRef = this.$refs[`section${slotIndex}`];
                 if(Array.isArray(itemRef)) {
