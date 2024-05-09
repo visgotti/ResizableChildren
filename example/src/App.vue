@@ -4,8 +4,8 @@
       class="demo-section"
     >
         <ul>
-            <li @click="() => { this.handleSwitchTo('row') }" :class="{'selected-dir': this.selectedDirection === 'row'}">row </li>
-            <li @click="() => { this.handleSwitchTo('column') }" :class="{'selected-dir': this.selectedDirection === 'column'}"> column </li>
+            <li @click="() => { this.handleSwitchTo('row') }" :class="{'selected-dir': this.selectedDirection === 'row'}">row (persisted) </li>
+            <li @click="() => { this.handleSwitchTo('column') }" :class="{'selected-dir': this.selectedDirection === 'column'}"> column (not persisted) </li>
         </ul>
       <h3>
           {{ this.selectedDirection}} with resizable children
@@ -22,11 +22,13 @@
       >
         <div
             :start-percent="50"
+            :min-length="10"
         >
           <div> slot 1a </div>
           <div> slot 1b </div>
         </div>
         <div
+            :min-length="50"
             :start-percent="40"
         >
             slot 2
@@ -42,6 +44,7 @@
         @lengths="handleLengthsChanged"
         @drag-start="handleDragStart"
         @drag-end="handleDragEnd"
+        :minLength="50"
     >
             <div>
                 <div> slot 1a </div>

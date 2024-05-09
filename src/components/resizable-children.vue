@@ -25,7 +25,7 @@
                 <div
                         class="section-divider-handle"
                         :class="dividerClass"
-                        @mousedown="(e) => handleDragStart(e, i)"
+                        @pointerdown="(e) => handleDragStart(e, i)"
                         :style="dividerHandleStyleObject"
                 >
                 </div>
@@ -36,7 +36,16 @@
 
 <script>
     import renderSlot from "./renderSlot.js";
-    import { capitalize, isPixelValue, pixelValidator } from "../utils";
+    import { 
+        capitalize,
+        isPixelValue, 
+        pixelValidator,
+        localStorageSet,
+        localStorageGet,
+        roundFloat,
+        addFloats,
+        localStorageRemove
+     } from "../utils";
     export default {
         name: 'ResizableChildren',
         components: {
@@ -69,7 +78,7 @@
                 });
             }
             this.handleDragEnd = this.handleDragEnd.bind(this);
-            document.addEventListener('mouseup', this.handleDragEnd);
+            document.addEventListener('pointerup', this.handleDragEnd);
             this.handleDragSection = this.handleDragSection.bind(this);
         
             let restored = false;
@@ -91,7 +100,6 @@
                 width: this.$refs.outer.clientWidth,
                 height: this.$refs.outer.clientHeight,
             });
-
         },
         beforeUnmount() {
             this.initializedLengths = false;
@@ -102,7 +110,9 @@
                 clearInterval(this.resizeInterval);
                 this.resizeInterval = null;
             }
-            document.removeEventListener('mouseup', this.handleDragEnd);
+            this.clearPersistDebounce();
+            this.persistStartPercents();
+            document.removeEventListener('pointerup', this.handleDragEnd);
         },
         props: {
             persist: {
@@ -165,6 +175,10 @@
                 type: Boolean,
                 default: true
             },
+            minLength: {
+                type: Number,
+                default: 0,
+            },
             intervalTimeout: {
                 type: Number,
                 default: 1000/30 // 30fps
@@ -172,6 +186,7 @@
         },
         data() {
             return {
+                debouncedPersistTimeout: null,
                 resizeInterval: null,
                 lastParentWidth: 0,
                 lastParentHeight: 0,
@@ -194,11 +209,20 @@
         computed: {
             isRow() { return this.direction === 'row'; },
             bodyClass() { return `--resizable-${this.direction}-is-dragging` },
-            dividerLengthKey() { return this.isRow ? 'clientWidth' : 'clientHeight' },
             beforeKey() { return this.isRow ? 'left' : 'top' },
             afterKey() { return this.isRow ? 'right' : 'bottom' },
             eventPosKey() { return this.isRow ? 'clientX' : 'clientY'; },
             lengthKey() { return this.isRow ? 'width' : 'height'; },
+            lengthKeyUppercase() { return capitalize(this.lengthKey)},
+            dividerLengthKey() { return `client${this.lengthKeyUppercase}`},
+            minLengthKeys() {
+                return [
+                    'minLength',
+                    'min-length',
+                    `min-${this.lengthKey}`,
+                    `min${this.lengthKeyUppercase}`
+                ]
+            },
             draggingItems() {
                 return {
                     item1: this.getSlotDataAtIndex(this.isDraggingIndex),
@@ -265,17 +289,29 @@
             }
         },
         watch: {
+            persistId(newValue, oldValue) {
+                if(oldValue) {
+                    localStorageRemove(oldValue)
+                }
+                if(newValue) {
+                    this.persistStartPercents();
+                }
+            },
             lengthsPerSection() {
                 if(!this.persist) return;
-                this.persistStartPercents();
+                this.clearPersistDebounce();
+                this.debouncedPersistTimeout = setTimeout(() => {
+                    this.persistStartPercents();
+                    this.debouncedPersistTimeout = null;
+                }, 1000);
             },
             isDraggingIndex(newV, oldV) {
                 let classListMethod = 'add';
                 if(oldV < 0 && newV >= 0) {
-                    document.addEventListener('mousemove', this.handleDragSection);
+                    document.addEventListener('pointermove', this.handleDragSection);
                 } else if (oldV >= 0 && newV < 0) {
                     classListMethod = 'remove';
-                    document.removeEventListener('mousemove', this.handleDragSection);
+                    document.removeEventListener('pointermove', this.handleDragSection);
                 }
                 if(!this.preventCursorStyle) {
                     document.body.classList[classListMethod](this.bodyClass);
@@ -283,6 +319,28 @@
             }
         },
         methods: {
+            getSectionMinLength(sectionIndex) {
+                return this.getSlotDataAttrProp(sectionIndex, this.minLengthKeys, this.minLength);
+            },
+            getSlotDataAttrProp(sectionIndex, propNameOrNames, defaultValue) {
+                const propNames = Array.isArray(propNameOrNames) ? propNameOrNames : [propNameOrNames];
+            
+                const dataAttrs = this.slots?.[sectionIndex]?.props;
+                if(!dataAttrs) {
+                    return defaultValue;
+                }
+                for(let i = 0; i < propNames.length; i++) {
+                    const prop = propNames[i];
+                    if(!(prop in dataAttrs)) { continue; }
+                    return dataAttrs[prop]
+                }
+                return defaultValue;
+            },
+            clearPersistDebounce() {
+                if(!this.debouncedPersistTimeout) { return; }
+                clearTimeout(this.debouncedPersistTimeout);
+                this.debouncedPersistTimeout = null;
+            },
             persistStartPercents() {
                 if(!this.persist) {
                     return;
@@ -291,51 +349,43 @@
                 const outerLengthKey = this.isRow ? 'clientWidth' : 'clientHeight';
                 Object.keys(this.lengthsPerSection).forEach((k, i) => {
                     const value = this.lengthsPerSection[k][this.lengthKey];
-                    const percent = Math.round(100 * (value/this.$refs.outer[outerLengthKey]));
+                    const percent = roundFloat(100 * (value/this.$refs.outer[outerLengthKey]), 1);
                     percents.push(percent);
                 });
-                let total = 0;
-                percents.forEach(p => {
-                    total += p;
-                });
+                let total = percents.reduce((a, b) => addFloats(a, b, 1), 0);
                 let i = 0;
-                const sign = Math.sign(100-total);
-                while(total !== 100){
-                    percents[i] += sign;
-                    total+=sign;
+                const diff = roundFloat(Math.sign(100-total) * .1, 1);
+                while(total !== 100) {
+                    percents[i] = addFloats(percents[i], diff, 1);
+                    total = addFloats(total, diff, 1)
                     i++;
                     if(i >= percents.length) {
                         i = 0;
                     }
                 }
-                if(typeof localStorage !== "undefined" && localStorage) {
-                    localStorage.setItem(this.persistId, JSON.stringify(percents));
-                }
+                localStorageSet(this.persistId, percents);
             },
             initPersistedStartPercents() {
-                if(typeof localStorage !== "undefined" && localStorage) {
-                    const p = localStorage.getItem(this.persistId);
-                    if(!p) return false;
-            
-                    const startPercents = JSON.parse(p);
-                    if(startPercents.length !== this.slots.length) {
-                        // invalid start percents
-                        localStorage.removeItem(this.persistId);
+                const p = localStorageGet(this.persistId);
+                if(!p) return false;
+        
+                const startPercents = JSON.parse(p);
+                if(startPercents.length !== this.slots.length) {
+                    // invalid start percents
+                    localStorageRemove(this.persistId);
+                    return false;
+                }
+                this.utilizedStartPercent = 0;
+                startPercents.forEach((p, i) => {
+                    this.startPercents[i] = p;
+                    this.utilizedStartPercent+=p;
+                    if(this.utilizedStartPercent > 100) {
+                            // invalid start percents
+                        localStorageRemove(this.persistId);
                         return false;
                     }
-                    this.utilizedStartPercent = 0;
-                    startPercents.forEach((p, i) => {
-                        this.startPercents[i] = p;
-                        this.utilizedStartPercent+=p;
-                        if(this.utilizedStartPercent > 100) {
-                                // invalid start percents
-                            localStorage.removeItem(this.persistId);
-                            return false;
-                        }
-                    });
-                    return true;
-                }
-                return false;
+                });
+                return true;
             },
             getSlotDataAtIndex(slotIndex) {
                 let itemRef = this.$refs[`section${slotIndex}`];
@@ -351,21 +401,19 @@
             },
             parseStartPercents() {
                 this.utilizedStartPercent = 0;
-                for(let i = 0; i < this.$slots.default.length; i++) {
-                    const percent = this.$slots.default[i];
-                    if(percent.data && percent.data.attrs) {
-                        const startPercent = percent.data.attrs['start-percent'];
-                        if(startPercent !== null && !isNaN(startPercent) && startPercent > 0) {
-                            this.startPercents[i] =startPercent;
-                            this.utilizedStartPercent+=startPercent;
-                            if(this.utilizedStartPercent > 100) {
-                                throw new Error(`Total start percent can not go above 100.`)
-                            }
-                        } else {
-                            if('start-percent' in percent.data.attrs) {
-                                throw new Error(`Invalid start percent attribute ${startPercent} given on slot #${i}; must be an integer value 0 or above.`)
-                            }
-                        }
+                for(let i = 0; i < this.slots.length; i++) {
+                    const startPercent = this.getSlotDataAttrProp(i, ['start-percent', 'startPercent'], null);
+                    if(startPercent === null) { continue; }
+                    if(isNaN(startPercent)) {
+                        throw new Error(`Start percent needs to be a number value`)
+                    }
+                    if(startPercent < 0) {
+                        throw new Error(`Start percent can not be less than 0.`)
+                    }
+                    this.startPercents[i] =startPercent;
+                    this.utilizedStartPercent+=startPercent;
+                    if(this.utilizedStartPercent > 100) {
+                        throw new Error(`Total start percent can not go above 100.`)
                     }
                 }
             },
@@ -420,6 +468,9 @@
                 });
                 this.$emit('lengths', payload);
             },
+            getBeforeClientLengthOfSection(sectionIndex) {
+                return parseInt(this.$refs[`section${sectionIndex}`][0].getBoundingClientRect()[this.dividerLengthKey])
+            },
             getBeforePositionOfSection(sectionIndex) {
                 return parseInt(this.$refs[`section${sectionIndex}`][0].getBoundingClientRect()[this.beforeKey])
             },
@@ -428,31 +479,65 @@
             },
             updateSectionLengthsFromParentResize(resized) {
                 if(!this.initializedLengths) return false;
-                let value = resized[this.lengthKey];
-                if(parseInt(this.utilizedParentLength) !== parseInt(value)) {
-                    this.utilizedParentLength = value;
-                    const neededDiff = this.utilizedParentLength - this.getAfterPositionOfSection(this.totalSections - 1);
-                    const oldValue = this.lengthsPerSection[this.totalSections-1][this.lengthKey];
-                    let newValue = oldValue + neededDiff;
-                    if(newValue + this.getBeforePositionOfSection(this.totalSections - 1) > value) {
-                        newValue -= newValue + this.getBeforePositionOfSection(this.totalSections - 1) - value;
-                    }
-                    this.lengthsPerSection = {
-                        ...this.lengthsPerSection,
-                        [this.totalSections-1]: {
-                            [this.lengthKey]: newValue,
-                            style: this.makeLengthStyleObject(this.lengthKey, `${newValue}px`)
-                        }
-                    }
-                    const payload = [
-                        {
-                            index: this.totalSections-1,
-                            oldLength: oldValue,
-                            newLength: newValue,
-                        }
-                    ];
-                    this.$emit('lengths', payload);
+                const oldParentLength = parseInt(this.utilizedParentLength);
+                const newParentLength = parseInt(resized[this.lengthKey]);
+
+                if(newParentLength === oldParentLength) {
+                    return;
                 }
+                this.utilizedParentLength = newParentLength;
+
+                const updatedLengthsPerSection = {};
+                const payload = [];
+                let lastIndex = this.totalSections-1;
+
+                const addUpdate = (lengthValue) => {
+                    payload.push({
+                        index: lastIndex,
+                        oldLength: this.lengthsPerSection[lastIndex][this.lengthKey],
+                        newLength: lengthValue,
+                    });
+                    updatedLengthsPerSection[lastIndex] = {
+                        [this.lengthKey]: lengthValue,
+                        style: this.makeLengthStyleObject(this.lengthKey, `${lengthValue}px`)
+                    }
+                }
+
+                if(newParentLength > oldParentLength) {
+                    const neededWidthToAdd = newParentLength - this.getAfterPositionOfSection(lastIndex);
+                    const oldValue = this.lengthsPerSection[lastIndex][this.lengthKey];
+                    let newValue = oldValue + neededWidthToAdd;
+                    let screenPosDiff = (newValue + this.getBeforePositionOfSection(lastIndex)) - newParentLength
+                    if(screenPosDiff > 0) {
+                        newValue -= screenPosDiff;
+                    }
+                    addUpdate(newValue)
+                } else {
+                    let neededWidthToRemove = oldParentLength - newParentLength;
+                    let accumWidth = 0;
+
+                    while(lastIndex >= 0 && neededWidthToRemove > 0) {
+                        const dividerThickness = parseInt(this.dividerThickness);
+                        const dividerOffset = (lastIndex === this.totalSections-1) ? 0 : dividerThickness;
+                        const oldValue = this.lengthsPerSection[lastIndex][this.lengthKey];
+                        const minValue = this.getSectionMinLength(lastIndex) + dividerOffset;
+
+                        let newValue = oldValue - neededWidthToRemove;
+                        if(newValue < minValue) {
+                            newValue = minValue;
+                        }
+                        neededWidthToRemove -= (oldValue - newValue);
+                        accumWidth += newValue;
+                        addUpdate(newValue);
+                        lastIndex--;
+                    }
+                }
+
+                this.lengthsPerSection = {
+                    ...this.lengthsPerSection,
+                    ...updatedLengthsPerSection
+                }
+                this.$emit('lengths', payload);
             },
             updateSectionLengths(tryDelta) {
                 const dividerThickness =  parseInt(this.dividerThickness);
@@ -474,6 +559,7 @@
                 const copiedWidths = { ...this.lengthsPerSection };
                 const curBeforeLength = this.lengthsPerSection[beforeSectionIndex][this.lengthKey];
                 const curAfterLength = this.lengthsPerSection[afterSectionIndex][this.lengthKey];
+
                 const dividerOffset = (tryDelta > 0 &&  afterSectionIndex === this.totalSections-1) ? 0 : dividerThickness; // if were moving right and on section before last, the divider offset is 0 since theres no divider on last element.
                 const maxLength = (curBeforeLength + (Math.abs(this.getAfterPositionOfSection(beforeSectionIndex) - this.getAfterPositionOfSection(afterSectionIndex))) - dividerOffset);
 
@@ -490,7 +576,28 @@
                     this.indexesAfterCollapsed = newCollapsedFromRightState;
                 }
 
-                const tryNextAfterLength = curAfterLength - tryDelta;
+                let tryNextAfterLength = curAfterLength - tryDelta;
+                    
+                if(tryDelta < 0) {
+                    const minLength = this.getSectionMinLength(beforeSectionIndex) + dividerOffset;
+                    // either negativ or 0
+                    const beforeLengthUnderMinDifference = (Math.min(tryNextBeforeLength - minLength, 0));
+                    // add (subtracting a negative) diff from after length
+                    tryNextBeforeLength -= beforeLengthUnderMinDifference;
+                    tryDelta -= beforeLengthUnderMinDifference
+                    // subtract (adding a negative) from delta and after value
+                    tryNextAfterLength += beforeLengthUnderMinDifference;
+                } else if(tryDelta > 0) {
+                    const minLength = this.getSectionMinLength(afterSectionIndex) + dividerOffset;
+                    // either negativ or 0
+                    const afterLengthUnderMinDifference = (Math.min(tryNextAfterLength - minLength, 0));
+                    // add (subtracting a negative) diff from after length
+                    tryNextAfterLength -= afterLengthUnderMinDifference;
+                    // subtract (adding a negative) from delta and after value
+                    tryNextBeforeLength += afterLengthUnderMinDifference;
+                    tryDelta += afterLengthUnderMinDifference
+                }
+            
                 if(Math.abs(tryDelta) > 0) {
                     copiedWidths[beforeSectionIndex][this.lengthKey] = tryNextBeforeLength;
                     copiedWidths[beforeSectionIndex].style = this.makeLengthStyleObject(this.lengthKey, `${tryNextBeforeLength}px`)
@@ -505,8 +612,7 @@
                             index: beforeSectionIndex,
                             oldLength: lastBeforeLength,
                             newLength: tryNextBeforeLength,
-                        }
-                        ,{
+                        },{
                             index: afterSectionIndex,
                             oldLength: lastAfterLength,
                             newLength: tryNextAfterLength,
