@@ -59,21 +59,19 @@
             this.dividerHandleOffset = `-${Math.floor((parseInt(this.dividerHandleThickness) - parseInt(this.dividerThickness)) / 2)}px`;
         },
         mounted() {
-            if(this.useResizeIntervalCheck) {
+            if(this.useResizeIntervalCheck) {             
+                const doCheck = () => {
+                    const nwLeng = this.$refs.outer[this.dividerLengthKey];
+                    if(nwLeng === this.lastParentLength) {
+                        return;
+                    }
+                    
+                    this.updateSectionLengthsFromParentResize(nwLeng);
+                }
                 this.$nextTick(() => {
-                    this.lastParentWidth = this.$refs.outer?.clientWidth;
-                    this.lastParentHeight = this.$refs.outer?.clientHeight;
-                
-                    this.resizeInterval = setInterval(() => {  
-                        if(!this.$refs.outer) {
-                            return;
-                        }
-                        const { clientWidth, clientHeight } = this.$refs.outer;
-                        if(clientWidth != this.lastParentWidth || clientHeight != this.lastParentHeight) {
-                            this.lastParentWidth = clientWidth;
-                            this.lastParentHeight = clientHeight;
-                            this.updateSectionLengthsFromParentResize({ width: clientWidth, height: clientHeight });
-                        }
+                    doCheck();
+                    this.resizeInterval = setInterval(() => {
+                        doCheck();                        
                     }, this.intervalTimeout);
                 });
             }
@@ -96,10 +94,7 @@
             this.initializedLengths = true;
             this.dividerOffsetStyle = this.getDividerOffset();
         
-            this.updateSectionLengthsFromParentResize({
-                width: this.$refs.outer.clientWidth,
-                height: this.$refs.outer.clientHeight,
-            });
+            this.updateSectionLengthsFromParentResize(this.$refs.outer[this.dividerLengthKey]);
         },
         beforeUnmount() {
             this.initializedLengths = false;
@@ -186,13 +181,12 @@
         },
         data() {
             return {
+                logIdx: 0,
                 debouncedPersistTimeout: null,
                 resizeInterval: null,
-                lastParentWidth: 0,
-                lastParentHeight: 0,
+                lastParentLength: 0,
                 slots: [],
                 initializedLengths: false,
-                utilizedParentLength: '0px',
                 lastDragPosition: 0,
                 isDraggingIndex: -1,
                 lengthsPerSection: {},
@@ -438,19 +432,19 @@
                 let newLengths = {};
                 let evenLength = 0;
                 if(this.$refs.outer) {
-                    this.utilizedParentLength = this.$refs.outer[this.dividerLengthKey];
-                    const utilizedStartPixels = this.utilizedParentLength * (this.utilizedStartPercent/100);
-                    const totalLength = this.utilizedParentLength - utilizedStartPixels;
+                    this.lastParentLength = this.$refs.outer[this.dividerLengthKey];
+                    const utilizedStartPixels = this.lastParentLength * (this.utilizedStartPercent/100);
+                    const totalLength = this.lastParentLength - utilizedStartPixels;
                     evenLength = Math.floor(totalLength/(this.totalSections-Object.keys(this.startPercents).length));
                 }
                 let utilized = 0;
                 for(let i = 0; i < this.totalSections; i++) {
-                    let lengthToUse = i in this.startPercents ? Math.floor(this.utilizedParentLength * (this.startPercents[i] / 100)) : evenLength;
+                    let lengthToUse = i in this.startPercents ? Math.floor(this.lastParentLength * (this.startPercents[i] / 100)) : evenLength;
                     utilized+=lengthToUse;
                     if(i === this.totalSections-1) {
-                        if(this.utilizedParentLength-utilized > 0) {
+                        if(this.lastParentLength-utilized > 0) {
                             //add remainder if were on last section and there's still length left to use from flooring the values.
-                            lengthToUse+= this.utilizedParentLength-utilized;
+                            lengthToUse+= this.lastParentLength-utilized;
                         }
                     }
                     newLengths[i] = {
@@ -477,15 +471,13 @@
             getAfterPositionOfSection(sectionIndex) {
                 return parseInt(this.$refs[`section${sectionIndex}`][0].getBoundingClientRect()[this.afterKey])
             },
-            updateSectionLengthsFromParentResize(resized) {
-                if(!this.initializedLengths) return false;
-                const oldParentLength = parseInt(this.utilizedParentLength);
-                const newParentLength = parseInt(resized[this.lengthKey]);
-
-                if(newParentLength === oldParentLength) {
+            updateSectionLengthsFromParentResize(newParentLength) {
+                const oldParentLength = this.lastParentLength;
+                if(newParentLength === this.lastParentLength) {
                     return;
                 }
-                this.utilizedParentLength = newParentLength;
+                if(!this.initializedLengths) return false;
+                this.lastParentLength = newParentLength;
 
                 const updatedLengthsPerSection = {};
                 const payload = [];
@@ -504,13 +496,9 @@
                 }
 
                 if(newParentLength > oldParentLength) {
-                    const neededWidthToAdd = newParentLength - this.getAfterPositionOfSection(lastIndex);
                     const oldValue = this.lengthsPerSection[lastIndex][this.lengthKey];
-                    let newValue = oldValue + neededWidthToAdd;
-                    let screenPosDiff = (newValue + this.getBeforePositionOfSection(lastIndex)) - newParentLength
-                    if(screenPosDiff > 0) {
-                        newValue -= screenPosDiff;
-                    }
+                    const neededWidthToAdd = newParentLength - oldParentLength;
+                    const newValue = oldValue + neededWidthToAdd;
                     addUpdate(newValue)
                 } else {
                     let neededWidthToRemove = oldParentLength - newParentLength;
@@ -528,11 +516,11 @@
                         }
                         neededWidthToRemove -= (oldValue - newValue);
                         accumWidth += newValue;
+
                         addUpdate(newValue);
                         lastIndex--;
                     }
                 }
-
                 this.lengthsPerSection = {
                     ...this.lengthsPerSection,
                     ...updatedLengthsPerSection
