@@ -13,8 +13,7 @@ export default defineComponent({
         value: {type: [Object], required: true},
         tag: {type: String, default: 'div'},
         options: {
-            type: Object, default: () => {
-            }
+            type: Object, default: () => {}
         },
     },
 })

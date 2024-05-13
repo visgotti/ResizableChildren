@@ -225,10 +225,13 @@
             dividerClass() {
                 const className = `section-divider-handle--${this.direction}`;
                 if(!this.preventCursorStyle) {
-                   return `${className} is-dragging`;
+                    return `${className} is-dragging`;
                 }
                 return className;
-             },
+            },
+            defaultSlots() {
+                return this.$slots.default();
+            },
             outerWrapperClass() {
                 let className = 'resizable-row-outer';
                 if(this.isDraggingIndex > -1 && !this.preventCursorStyle) {
@@ -282,6 +285,9 @@
             }
         },
         watch: {
+            defaultSlots() {
+                this.slots = this.defaultSlots;
+            },
             persistId(newValue, oldValue) {
                 if(oldValue) {
                     localStorageRemove(oldValue)

@@ -26,6 +26,10 @@
         >
           <div> slot 1a </div>
           <div> slot 1b </div>
+          <CustomComponent
+            :start-percent="50"
+            :test="testProp"
+          />
         </div>
         <div
             :min-length="50"
@@ -33,7 +37,9 @@
         >
             slot 2
         </div>
-        <div> slot 4 </div>
+        <CustomComponent
+          :test="testProp"
+        />
       </ResizableChildren>
     <ResizableChildren
         :persist="true"
@@ -60,36 +66,42 @@
 
 <script>
 import ResizableChildren from '../../dist';
-
+import CustomComponent from './CustomComponent.vue'
 export default {
   name: 'App',
-    data() {
-      console.log({ ResizableChildren })
-      return {
-          selectedDirection: 'row'
-      }
-    },
-    methods: {
-        handleLengthsChanged(v) {
-            console.log('lengths changed:', v)
-        },
-        handleDragEnd(e) {
-          console.log('end', e);
-        },
-        handleDragStart(e) {
-          console.log('start', e);
-        },
+  data() {
+    return {
+        testProp: 'test prop start',
+        selectedDirection: 'row'
+    }
+  },
+  methods: {
+      handleLengthsChanged(v) {
+          console.log('lengths changed:', v)
+      },
+      handleDragEnd(e) {
+        console.log('end', e);
+      },
+      handleDragStart(e) {
+        console.log('start', e);
+      },
 
-        handleSwitchTo(dir) {
-            if(dir === this.selectedDirection) return;
-            // im not sure why... but if i just set the direction to something else it doesnt hit the mounted/destroy hooks on the component.
-            this.selectedDirection = null;
-            this.$nextTick(() => {
-                this.selectedDirection = dir;
-            })
-        }
-    },
+      handleSwitchTo(dir) {
+          if(dir === this.selectedDirection) return;
+          // im not sure why... but if i just set the direction to something else it doesnt hit the mounted/destroy hooks on the component.
+          this.selectedDirection = null;
+          this.$nextTick(() => {
+              this.selectedDirection = dir;
+          })
+      }
+  },
+  mounted() {
+    setTimeout(() => {
+      this.testProp = "test prop changed";
+    }, 1000);
+  },
   components: {
+    CustomComponent,
     ResizableChildren
   }
 }
