@@ -181,7 +181,6 @@
         },
         data() {
             return {
-                logIdx: 0,
                 debouncedPersistTimeout: null,
                 resizeInterval: null,
                 lastParentLength: 0,
@@ -449,7 +448,7 @@
                     }
                     newLengths[i] = {
                         [this.lengthKey]: lengthToUse,
-                        style: this.makeLengthStyleObject(this.lengthKey,  `${lengthToUse}px`)
+                        style: this.makeLengthStyleObject(this.lengthKey,  lengthToUse)
                     }
                 }
                 this.lengthsPerSection = newLengths;
@@ -491,7 +490,7 @@
                     });
                     updatedLengthsPerSection[lastIndex] = {
                         [this.lengthKey]: lengthValue,
-                        style: this.makeLengthStyleObject(this.lengthKey, `${lengthValue}px`)
+                        style: this.makeLengthStyleObject(this.lengthKey, lengthValue)
                     }
                 }
 
@@ -547,7 +546,7 @@
                 const copiedWidths = { ...this.lengthsPerSection };
                 const curBeforeLength = this.lengthsPerSection[beforeSectionIndex][this.lengthKey];
                 const curAfterLength = this.lengthsPerSection[afterSectionIndex][this.lengthKey];
-
+ 
                 const dividerOffset = (tryDelta > 0 &&  afterSectionIndex === this.totalSections-1) ? 0 : dividerThickness; // if were moving right and on section before last, the divider offset is 0 since theres no divider on last element.
                 const maxLength = (curBeforeLength + (Math.abs(this.getAfterPositionOfSection(beforeSectionIndex) - this.getAfterPositionOfSection(afterSectionIndex))) - dividerOffset);
 
@@ -588,9 +587,9 @@
             
                 if(Math.abs(tryDelta) > 0) {
                     copiedWidths[beforeSectionIndex][this.lengthKey] = tryNextBeforeLength;
-                    copiedWidths[beforeSectionIndex].style = this.makeLengthStyleObject(this.lengthKey, `${tryNextBeforeLength}px`)
+                    copiedWidths[beforeSectionIndex].style = this.makeLengthStyleObject(this.lengthKey, tryNextBeforeLength)
                     copiedWidths[afterSectionIndex][this.lengthKey] = tryNextAfterLength;
-                    copiedWidths[afterSectionIndex].style = this.makeLengthStyleObject(this.lengthKey, `${tryNextAfterLength}px`)
+                    copiedWidths[afterSectionIndex].style = this.makeLengthStyleObject(this.lengthKey, tryNextAfterLength)
                     const lastBeforeLength = this.lengthsPerSection[beforeSectionIndex][this.lengthKey];
                     const lastAfterLength = this.lengthsPerSection[afterSectionIndex][this.lengthKey];
 
@@ -605,6 +604,7 @@
                             oldLength: lastAfterLength,
                             newLength: tryNextAfterLength,
                     }];
+        
                     this.$emit('lengths', payload);
                 }
             },
@@ -646,6 +646,9 @@
                 this.isDraggingIndex = -1;
             },
             makeLengthStyleObject(key, value) {
+                if(typeof value !== "string") {
+                    value = `${value}px`
+                }
                 return {
                     [`min${capitalize(key)}`]: value,
                     [`max${capitalize(key)}`]: value,
